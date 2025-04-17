@@ -4,13 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/init-mysql.js && next build",
+    "build": "node scripts/init-mysql.js || echo 'MySQL initialization skipped' && next build",
     "start": "node server.js",
     "lint": "next lint",
     "test:mysql": "node scripts/test-mysql-connection.js",
     "init:mysql": "node scripts/init-mysql.js",
     "migrate:mysql": "ts-node scripts/migrate-to-mysql.ts",
-    "postinstall": "node scripts/check-data.js"
+    "postinstall": "node scripts/check-data.js",
+    "check:mysql": "node scripts/check-mysql.js"
   },
   "dependencies": {
     "mysql2": "^3.6.5",
