@@ -24,18 +24,28 @@ async function setupMySQL() {
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
+      connectTimeout: 10000, // 10 seconds timeout
     }
 
     if (!config.password) {
       console.warn("⚠️ MySQL password not set in environment variables")
-      console.warn("⚠️ Please set MYSQL_PASSWORD in your environment variables")
+      console.warn("⚠️ Application will use in-memory fallback")
       return false
     }
 
     console.log(`🔄 Connecting to MySQL at ${config.host}:${config.port}...`)
 
-    // Test the connection
-    const connection = await mysql.createConnection(config)
+    // Test the connection with a timeout
+    const connectionPromise = mysql.createConnection(config)
+
+    // Create a timeout promise
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("Connection timeout")), 10000)
+    })
+
+    // Race the connection against the timeout
+    const connection = await Promise.race([connectionPromise, timeoutPromise])
+
     console.log("✅ MySQL connection established successfully")
 
     // Test the connection with a simple query
@@ -48,6 +58,7 @@ async function setupMySQL() {
     return true
   } catch (error) {
     console.error("❌ Error setting up MySQL:", error.message)
+    console.log("⚠️ Application will use in-memory fallback")
     return false
   }
 }
@@ -60,8 +71,13 @@ const handle = app.getRequestHandler()
 app
   .prepare()
   .then(async () => {
-    // Intentar conectar a MySQL
-    await setupMySQL()
+    // Try to connect to MySQL, but don't fail if it doesn't work
+    try {
+      await setupMySQL()
+    } catch (error) {
+      console.error("MySQL setup error:", error)
+      console.log("⚠️ Application will use in-memory fallback")
+    }
 
     // Crear el servidor HTTP
     createServer(async (req, res) => {
