@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: blog-teikoku
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        value: mongodb+srv://lucasteikoku:lucas9244.@cluster0.tqbihbw.mongodb.net/?appName=Cluster0
+      - key: JWT_SECRET
+        value: lucasbase9244
+      - key: RENDER
+        value: 1
+    disk:
+      name: data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
+    autoDeploy: true
+    scaling:
+      minInstances: 1
+      maxInstances: 1
+      targetMemoryPercent: 80
+    buildFilter:
+      paths:
+        - package.json
+        - server.js
+        - next.config.mjs
+        - app/**
+        - lib/**
+        - components/**
+        - scripts/**
