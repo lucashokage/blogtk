@@ -1,5 +1,6 @@
-import { getMySQLPool, generateId } from "./mysql"
+import { getMySQLPool } from "./mysql-connection"
 import type mysql from "mysql2/promise"
+import { v4 as uuidv4 } from "uuid"
 
 // Declare global variables for fallback data
 declare global {
@@ -60,10 +61,24 @@ export interface Code {
   usedBy?: string
 }
 
+// Helper function to generate a unique ID
+export function generateId(): string {
+  return uuidv4()
+}
+
 // Member repository functions
 export async function getAllMembers(): Promise<Member[]> {
   try {
     const pool = await getMySQLPool()
+
+    // If pool is null, fall back to in-memory data
+    if (!pool) {
+      console.log("⚠️ Falling back to in-memory members data (no MySQL connection)")
+      if (global.__memoryData && Array.isArray(global.__memoryData.members)) {
+        return global.__memoryData.members
+      }
+      return []
+    }
 
     // Query to get all members with their social media and stats
     const [rows] = await pool.query(`
@@ -128,6 +143,15 @@ export async function getAllMembers(): Promise<Member[]> {
 export async function getMemberById(id: string): Promise<Member | undefined> {
   try {
     const pool = await getMySQLPool()
+
+    // If pool is null, fall back to in-memory data
+    if (!pool) {
+      console.log("⚠️ Falling back to in-memory members data (no MySQL connection)")
+      if (global.__memoryData && Array.isArray(global.__memoryData.members)) {
+        return global.__memoryData.members.find((m) => m.id === id)
+      }
+      return undefined
+    }
 
     // Query to get a member with its social media and stats
     const [rows] = await pool.query(
@@ -200,6 +224,11 @@ export async function getMemberById(id: string): Promise<Member | undefined> {
 export async function createMember(member: Member): Promise<Member> {
   try {
     const pool = await getMySQLPool()
+
+    // If pool is null, throw error
+    if (!pool) {
+      throw new Error("No MySQL connection")
+    }
 
     // Generate ID if not provided
     if (!member.id) {
@@ -311,6 +340,11 @@ export async function createMember(member: Member): Promise<Member> {
 export async function updateMember(id: string, updates: Partial<Member>): Promise<Member | null> {
   try {
     const pool = await getMySQLPool()
+
+    // If pool is null, throw error
+    if (!pool) {
+      throw new Error("No MySQL connection")
+    }
 
     // Update timestamp
     updates.lastUpdated = new Date().toISOString()
@@ -491,6 +525,11 @@ export async function deleteMember(id: string): Promise<boolean> {
   try {
     const pool = await getMySQLPool()
 
+    // If pool is null, throw error
+    if (!pool) {
+      throw new Error("No MySQL connection")
+    }
+
     // Delete the member (cascade will delete related records)
     const [result] = await pool.query("DELETE FROM members WHERE id = ?", [id])
 
@@ -521,6 +560,15 @@ export async function deleteMember(id: string): Promise<boolean> {
 export async function getAllCodes(): Promise<Code[]> {
   try {
     const pool = await getMySQLPool()
+
+    // If pool is null, fall back to in-memory data
+    if (!pool) {
+      console.log("⚠️ Falling back to in-memory codes data (no MySQL connection)")
+      if (global.__memoryData && Array.isArray(global.__memoryData.codes)) {
+        return global.__memoryData.codes
+      }
+      return []
+    }
 
     // Query to get all codes
     const [rows] = await pool.query("SELECT * FROM codes")
@@ -555,6 +603,15 @@ export async function getAllCodes(): Promise<Code[]> {
 export async function getCodeByValue(code: string): Promise<Code | undefined> {
   try {
     const pool = await getMySQLPool()
+
+    // If pool is null, fall back to in-memory data
+    if (!pool) {
+      console.log("⚠️ Falling back to in-memory codes data (no MySQL connection)")
+      if (global.__memoryData && Array.isArray(global.__memoryData.codes)) {
+        return global.__memoryData.codes.find((c) => c.code === code)
+      }
+      return undefined
+    }
 
     // Query to get a code by its value
     const [rows] = await pool.query("SELECT * FROM codes WHERE code = ?", [code])
@@ -591,6 +648,11 @@ export async function getCodeByValue(code: string): Promise<Code | undefined> {
 export async function createCode(expirationDays = 7): Promise<Code> {
   try {
     const pool = await getMySQLPool()
+
+    // If pool is null, throw error
+    if (!pool) {
+      throw new Error("No MySQL connection")
+    }
 
     // Generate a random code
     const code = generateRandomCode()
@@ -662,6 +724,11 @@ export async function useCode(code: string, fingerprint: string): Promise<boolea
   try {
     const pool = await getMySQLPool()
 
+    // If pool is null, throw error
+    if (!pool) {
+      throw new Error("No MySQL connection")
+    }
+
     // Verify if the code exists and is not used
     const existingCode = await getCodeByValue(code)
     if (!existingCode || existingCode.used || new Date(existingCode.expiresAt) < new Date()) {
@@ -714,6 +781,11 @@ export async function deleteCode(code: string): Promise<boolean> {
   try {
     const pool = await getMySQLPool()
 
+    // If pool is null, throw error
+    if (!pool) {
+      throw new Error("No MySQL connection")
+    }
+
     // Delete the code
     const [result] = await pool.query("DELETE FROM codes WHERE code = ?", [code])
 
@@ -742,6 +814,12 @@ export async function deleteCode(code: string): Promise<boolean> {
 export async function verifyAdminCredentials(username: string, password: string): Promise<boolean> {
   try {
     const pool = await getMySQLPool()
+
+    // If pool is null, return false
+    if (!pool) {
+      console.log("⚠️ No MySQL connection")
+      return false
+    }
 
     // Query to get admin user
     const [rows] = await pool.query(
@@ -832,9 +910,13 @@ function generateRandomCode(): string {
 // Function to import data from localStorage to the server
 export async function importDataFromLocalStorage(data: any): Promise<boolean> {
   try {
-    if (!data) return false
-
     const pool = await getMySQLPool()
+
+    // If pool is null, throw error
+    if (!pool) {
+      throw new Error("No MySQL connection")
+    }
+
     const connection = await pool.getConnection()
     await connection.beginTransaction()
 
@@ -1029,6 +1111,13 @@ export async function importDataFromLocalStorage(data: any): Promise<boolean> {
 // Function to export all data
 export async function exportAllData() {
   try {
+    const pool = await getMySQLPool()
+
+    // If pool is null, throw error
+    if (!pool) {
+      throw new Error("No MySQL connection")
+    }
+
     const members = await getAllMembers()
     const codes = await getAllCodes()
 
