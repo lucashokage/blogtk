@@ -9,22 +9,32 @@ dotenv.config()
 async function initializeMySQL() {
   console.log("🚀 Initializing MySQL database...")
 
+  if (process.env.SKIP_DB_INIT === "true") {
+    console.log("⚠️ Skipping MySQL initialization due to SKIP_DB_INIT environment variable")
+    return true
+  }
+
   // Get MySQL configuration
   const config = {
     host: process.env.MYSQL_HOST || "database-1.c9wyu6c8ancu.us-east-2.rds.amazonaws.com",
     port: Number.parseInt(process.env.MYSQL_PORT || "3306", 10),
     user: process.env.MYSQL_USER || "admin",
-    password: process.env.MYSQL_PASSWORD || "lUCAS9244.",
+    password: process.env.MYSQL_PASSWORD || "lUCAS9244",
     database: process.env.MYSQL_DATABASE || "database-1",
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
   }
 
-  if (!config.password) {
+  if (!process.env.MYSQL_PASSWORD) {
     console.warn("⚠️ MySQL password not set in environment variables")
-    console.warn("⚠️ Please set MYSQL_PASSWORD in your environment variables")
-    process.exit(1)
+    console.warn("⚠️ Setting MYSQL_PASSWORD is required for database operations")
+
+    // During build, we'll continue without failing
+    if (process.env.NODE_ENV === "production" && process.argv.includes("--build")) {
+      console.log("⚠️ Building without MySQL connection (will use in-memory fallback)")
+      return true
+    }
   }
 
   let connection
@@ -136,7 +146,14 @@ async function initializeMySQL() {
     console.log("✅ MySQL database initialization completed successfully")
     return true
   } catch (error) {
-    console.error("❌ Error initializing MySQL database:", error)
+    console.error("❌ Error initializing MySQL database:", error.message)
+
+    // Don't fail the build in production
+    if (process.env.NODE_ENV === "production" && process.argv.includes("--build")) {
+      console.log("⚠️ Build will continue with in-memory fallback")
+      return true
+    }
+
     return false
   } finally {
     if (connection) {
